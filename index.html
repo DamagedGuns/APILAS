@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Galerie</title>
+    <style>
+        :root {
+            --bg-color: #0f0f11;
+            --card-bg: #18181b;
+            --text-color: #e4e4e7;
+            --text-muted: #71717a;
+            --accent: #ffffff;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        header {
+            padding: 40px 20px 20px;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 1.6rem;
+            font-weight: 500;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: var(--accent);
+        }
+
+        #status {
+            margin-top: 8px;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+        }
+
+        /* Grille responsive sobre */
+        .gallery-container {
+            flex: 1;
+            max-width: 1400px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 16px;
+        }
+
+        .photo-card {
+            background-color: var(--card-bg);
+            border-radius: 6px;
+            overflow: hidden;
+            aspect-ratio: 4 / 3;
+            cursor: pointer;
+            position: relative;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            transition: transform 0.25s ease, box-shadow 0.25s ease;
+        }
+
+        .photo-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
+        }
+
+        .photo-card img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+            opacity: 0;
+            transition: opacity 0.4s ease, transform 0.3s ease;
+        }
+
+        .photo-card:hover img {
+            transform: scale(1.03);
+        }
+
+        .photo-card img.loaded {
+            opacity: 1;
+        }
+
+        /* Vue plein écran (Lightbox) */
+        .lightbox {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.92);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            cursor: zoom-out;
+        }
+
+        .lightbox.active {
+            display: flex;
+        }
+
+        .lightbox img {
+            max-width: 92vw;
+            max-height: 90vh;
+            object-fit: contain;
+            border-radius: 4px;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.8);
+            cursor: default;
+        }
+
+        .lightbox-close {
+            position: absolute;
+            top: 20px;
+            right: 24px;
+            font-size: 32px;
+            color: var(--text-muted);
+            cursor: pointer;
+            line-height: 1;
+        }
+
+        .lightbox-close:hover {
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Galerie Photos</h1>
+        <p id="status">Chargement des photos...</p>
+    </header>
+
+    <main class="gallery-container" id="gallery"></main>
+
+    <!-- Visualiseur plein écran -->
+    <div class="lightbox" id="lightbox">
+        <span class="lightbox-close" id="lightbox-close">&times;</span>
+        <img id="lightbox-img" src="" alt="Agrandissement">
+    </div>
+
+    <script>
+        /* ─────────────────────────────────────────────────────────────
+           CONFIGURATION GITHUB
+           Renseignez vos identifiants si l'auto-détection ne suffit pas :
+        ───────────────────────────────────────────────────────────── */
+        const GITHUB_USER = "DamagedGuns"; // ex: "damagedguns"
+        const REPO_NAME   = "APILAS";  // ex: "mini-site"
+        const FOLDER_PATH = "";                    // Laissez "" si les photos sont à la racine du dépôt,
+                                                   // sinon le sous-dossier, ex: "photos" ou "galerie"
+
+        /* ───────────────────────────────────────────────────────────── */
+        const galleryEl = document.getElementById('gallery');
+        const statusEl = document.getElementById('status');
+        const validExtensions = /\.(jpe?g|png|webp|gif|avif)$/i;
+
+        async function loadPhotos() {
+            // URL de l'API GitHub pour récupérer le contenu du dossier
+            const endpoint = `https://api.github.com/repos/${GITHUB_USER}/${REPO_NAME}/contents/${FOLDER_PATH}`;
+
+            try {
+                const response = await fetch(endpoint);
+
+                if (!response.ok) {
+                    throw new Error(`Erreur API (${response.status}) : vérifiez GITHUB_USER et REPO_NAME.`);
+                }
+
+                const files = await response.json();
+
+                // Filtrer pour ne garder que les images
+                const images = files.filter(file => file.type === "file" && validExtensions.test(file.name));
+
+                if (images.length === 0) {
+                    statusEl.textContent = "Aucune image trouvée dans ce dossier.";
+                    return;
+                }
+
+                statusEl.textContent = `${images.length} photo${images.length > 1 ? 's' : ''}`;
+
+                // Génération de la galerie
+                images.forEach(imgData => {
+                    const card = document.createElement('div');
+                    card.className = 'photo-card';
+
+                    const img = document.createElement('img');
+                    // On utilise le chemin direct relatif pour économiser les requêtes
+                    img.src = imgData.name; 
+                    img.alt = imgData.name;
+                    img.loading = "lazy"; // Ne charge que les photos visibles à l'écran
+
+                    img.onload = () => img.classList.add('loaded');
+
+                    card.appendChild(img);
+                    card.addEventListener('click', () => openLightbox(imgData.name));
+                    galleryEl.appendChild(card);
+                });
+
+            } catch (err) {
+                console.error(err);
+                statusEl.textContent = "Impossible de charger les photos. Vérifiez vos paramètres.";
+            }
+        }
+
+        /* ──────────────── Gestion de la Lightbox ──────────────── */
+        const lightbox = document.getElementById('lightbox');
+        const lightboxImg = document.getElementById('lightbox-img');
+        const lightboxClose = document.getElementById('lightbox-close');
+
+        function openLightbox(src) {
+            lightboxImg.src = src;
+            lightbox.classList.add('active');
+            document.body.style.overflow = 'hidden'; // Empêche le défilement
+        }
+
+        function closeLightbox() {
+            lightbox.classList.remove('active');
+            lightboxImg.src = "";
+            document.body.style.overflow = '';
+        }
+
+        lightbox.addEventListener('click', (e) => {
+            if (e.target !== lightboxImg) closeLightbox();
+        });
+        lightboxClose.addEventListener('click', closeLightbox);
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeLightbox();
+        });
+
+        // Lancement au chargement de la page
+        loadPhotos();
+    </script>
+</body>
+</html>
